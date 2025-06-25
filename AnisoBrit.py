@@ -155,7 +155,19 @@ with col3:
 
 # Download results
 output_las = lasio.LASFile()
-output_las.header = las.header
+#output_las.header = las.header
+
+
+
+# Copy the header information properly
+output_las.well = las.well
+output_las.curves = las.curves
+output_las.params = las.params
+output_las.version = las.version
+output_las.wrap = las.wrap
+
+
+
 output_las.set_data_from_df(las.df())
 output_las['YMv'] = YMv
 output_las['YMh'] = YMh
