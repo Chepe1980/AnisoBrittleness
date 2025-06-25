@@ -154,17 +154,24 @@ with col3:
     st.write(f"Gamma (γ): {np.nanmean(gamma):.3f} ± {np.nanstd(gamma):.3f}")
 
 # Download results
-output_las = lasio.LASFile()
+#output_las = lasio.LASFile()
 #output_las.header = las.header
-
-
-
 # Copy the header information properly
-output_las.well = las.well
-output_las.curves = las.curves
-output_las.params = las.params
-output_las.version = las.version
-output_las.wrap = las.wrap
+#output_las.well = las.well
+#output_las.curves = las.curves
+#output_las.params = las.params
+#output_las.version = las.version
+#output_las.wrap = las.wrap
+
+
+output_las = lasio.LASFile()
+output_las.well['STRT'].value = las.well['STRT'].value
+output_las.well['STOP'].value = las.well['STOP'].value
+output_las.well['STEP'].value = las.well['STEP'].value
+output_las.well['NULL'].value = las.well['NULL'].value
+# Add other essential well headers as needed
+
+
 
 
 
