@@ -164,12 +164,53 @@ with col3:
 #output_las.wrap = las.wrap
 
 
-output_las = lasio.LASFile()
-output_las.well['STRT'].value = las.well['STRT'].value
-output_las.well['STOP'].value = las.well['STOP'].value
-output_las.well['STEP'].value = las.well['STEP'].value
-output_las.well['NULL'].value = las.well['NULL'].value
-# Add other essential well headers as needed
+# Download results
+try:
+    # Create new LAS file
+    output_las = lasio.LASFile()
+    
+    # Copy essential well information safely
+    for item in ['STRT', 'STOP', 'STEP', 'NULL']:
+        if item in las.well:
+            output_las.well[item] = las.well[item]
+    
+    # Set depth units
+    output_las.well['DEPT'].unit = las.well['DEPT'].unit if 'DEPT' in las.well else 'm'
+    
+    # Add original curves
+    for curve in las.curves:
+        if curve.mnemonic not in ['YMv', 'YMh', 'Vv', 'Vh', 'BRITv', 'BRITh', 'DELTA', 'EPSILON', 'GAMMA']:
+            output_las.add_curve(curve.mnemonic, curve.data, unit=curve.unit)
+    
+    # Add new calculated curves
+    new_curves = [
+        ('YMv', YMv, 'GPa', 'Youngs Modulus Vertical'),
+        ('YMh', YMh, 'GPa', 'Youngs Modulus Horizontal'),
+        ('Vv', Vv, '', 'Poissons Ratio Vertical'),
+        ('Vh', Vh, '', 'Poissons Ratio Horizontal'),
+        ('BRITv', BRITv, '', 'Brittleness Vertical'),
+        ('BRITh', BRITh, '', 'Brittleness Horizontal'),
+        ('DELTA', delta, '', 'Thomsen Delta'),
+        ('EPSILON', epsilon, '', 'Thomsen Epsilon'),
+        ('GAMMA', gamma, '', 'Thomsen Gamma')
+    ]
+    
+    for mnemonic, data, unit, desc in new_curves:
+        output_las.add_curve(mnemonic, data, unit=unit)
+        output_las.add_param(mnemonic, desc, '')
+    
+    # Generate download button
+    las_data = output_las.write()
+    st.download_button(
+        label="Download Results (LAS)",
+        data=las_data,
+        file_name="geomechanical_analysis.las",
+        mime="text/plain"
+    )
+    
+except Exception as e:
+    st.error(f"Error preparing download file: {str(e)}")
+    st.error("Please check the input data and try again.")
 
 
 
