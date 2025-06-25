@@ -163,93 +163,112 @@ with col3:
 #output_las.version = las.version
 #output_las.wrap = las.wrap
 import pandas as pd
+
+
+
+
+
+
+
+
+# Download results - COMPLETE SOLUTION
 try:
-    # Create DataFrame with all data
-    df = pd.DataFrame({
-        'DEPT': las.index,
-        'YMv': np.nan_to_num(YMv, nan=-999.25),
-        'YMh': np.nan_to_num(YMh, nan=-999.25),
-        # Add all other curves similarly...
-    })
-    
-    # Create LAS file from DataFrame
+    # Initialize new LAS file with required headers
     output_las = lasio.LASFile()
-    output_las.set_data(df)
     
-    # Add well information
+    # Set mandatory well information with fallbacks
+    output_las.well.WELL.value = str(las.well.WELL.value) if 'WELL' in las.well else 'ANONYMOUS'
     output_las.well.NULL.value = -999.25
+    output_las.well.STRT.value = float(las.index[0])
+    output_las.well.STOP.value = float(las.index[-1])
+    output_las.well.STEP.value = float(las.index[1] - las.index[0]) if len(las.index) > 1 else 1.0
     
-    st.download_button(
-        label="Download Results",
-        data=output_las.write(),
-        file_name="results.las",
-        mime="text/plain"
-    )
-except Exception as e:
-    st.error(f"Download error: {str(e)}")
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    # Add version and wrap information
+    output_las.version = ['1.2', 'WRAP: NO']
     
-
-
-
-
-
-
+    # Function to safely add curves
+    def safe_add_curve(las_file, mnemonic, data, unit=''):
+        """Add curve with validation and cleaning"""
+        if data is None:
+            return
+        clean_data = np.nan_to_num(data, nan=-999.25)
+        if hasattr(las_file, 'add_curve'):
+            las_file.add_curve(mnemonic, clean_data, unit=unit)
+        else:  # For older lasio versions
+            las_file.append_curve(mnemonic, clean_data, unit=unit)
     
-    # Add new calculated curves
-    new_curves = [
-        ('YMv', YMv, 'GPa', 'Youngs Modulus Vertical'),
-        ('YMh', YMh, 'GPa', 'Youngs Modulus Horizontal'),
-        ('Vv', Vv, '', 'Poissons Ratio Vertical'),
-        ('Vh', Vh, '', 'Poissons Ratio Horizontal'),
-        ('BRITv', BRITv, '', 'Brittleness Vertical'),
-        ('BRITh', BRITh, '', 'Brittleness Horizontal'),
-        ('DELTA', delta, '', 'Thomsen Delta'),
-        ('EPSILON', epsilon, '', 'Thomsen Epsilon'),
-        ('GAMMA', gamma, '', 'Thomsen Gamma')
+    # Add depth curve first
+    safe_add_curve(output_las, 'DEPT', las.index, 'm')
+    
+    # Add all calculated curves
+    curves = [
+        ('YMv', YMv, 'GPa'),
+        ('YMh', YMh, 'GPa'),
+        ('Vv', Vv, ''),
+        ('Vh', Vh, ''),
+        ('BRITv', BRITv, ''),
+        ('BRITh', BRITh, ''),
+        ('DELTA', delta, ''),
+        ('EPSILON', epsilon, ''),
+        ('GAMMA', gamma, '')
     ]
     
-    for mnemonic, data, unit, desc in new_curves:
-        output_las.add_curve(mnemonic, data, unit=unit)
-        output_las.add_param(mnemonic, desc, '')
+    for mnemonic, data, unit in curves:
+        safe_add_curve(output_las, mnemonic, data, unit)
     
-    # Generate download button
-    las_data = output_las.write()
+    # Write to bytes buffer with explicit encoding
+    las_buffer = io.BytesIO()
+    output_las.write(las_buffer, version=2.0, fmt='%.5f')  # Control float formatting
+    las_buffer.seek(0)
+    
+    # Create download button
     st.download_button(
         label="Download Results (LAS)",
-        data=las_data,
-        file_name="geomechanical_analysis.las",
+        data=las_buffer.getvalue(),
+        file_name=f"{output_las.well.WELL.value}_geomech.las",
         mime="text/plain"
     )
-    
+
 except Exception as e:
-    st.error(f"Error preparing download file: {str(e)}")
-    st.error("Please check the input data and try again.")
+    st.error(f"Final download error: {str(e)}")
+    st.error("Please contact support with your input file for debugging.")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    
+
+
+
+
+
+
+
 
 
 
