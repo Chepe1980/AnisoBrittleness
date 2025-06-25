@@ -167,38 +167,90 @@ import pandas as pd
 
 
 
+# Download results - FULLY DEBUGGED VERSION
 try:
-    # Create simple LAS file with just depth and calculated values
+    # Create a new clean LAS file
     output_las = lasio.LASFile()
-    output_las.well.NULL.value = -999.25
     
-    # Add only numeric data columns
-    data_dict = {
-        'DEPT': las.index,
-        'YMv': np.nan_to_num(YMv, nan=-999.25),
-        'YMh': np.nan_to_num(YMh, nan=-999.25),
-        'Vv': np.nan_to_num(Vv, nan=-999.25),
-        'Vh': np.nan_to_num(Vh, nan=-999.25)
+    # Set mandatory well headers with validation
+    required_headers = {
+        'WELL': ('ANONYMOUS', str),
+        'NULL': (-999.25, float),
+        'STRT': (float(las.index[0]), float),
+        'STOP': (float(las.index[-1]), float),
+        'STEP': (float(las.index[1] - las.index[0]) if len(las.index) > 1 else 1.0, float)
     }
     
-    # Convert to DataFrame and set data
-    df = pd.DataFrame(data_dict)
-    output_las.set_data(df)
+    for header, (default, dtype) in required_headers.items():
+        try:
+            val = dtype(las.well[header].value) if header in las.well else default
+            setattr(output_las.well, header, val)
+        except:
+            setattr(output_las.well, header, default)
     
-    st.download_button(
-        label="Download Minimal Results",
-        data=output_las.write(),
-        file_name="minimal_results.las",
-        mime="text/plain"
-    )
+    # Create clean data dictionary with validated curve names
+    data_dict = {}
+    
+    # Add depth first
+    data_dict['DEPT'] = las.index
+    
+    # Add calculated curves with name validation
+    curves = [
+        ('YMv', YMv),
+        ('YMh', YMh),
+        ('Vv', Vv),
+        ('Vh', Vh),
+        ('BRITv', BRITv),
+        ('BRITh', BRITh),
+        ('DELTA', delta),
+        ('EPSILON', epsilon),
+        ('GAMMA', gamma)
+    ]
+    
+    for name, data in curves:
+        if name.strip() == "":  # Skip empty names
+            continue
+        clean_data = np.nan_to_num(data, nan=-999.25)
+        data_dict[name] = clean_data
+    
+    # Convert to DataFrame and validate
+    df = pd.DataFrame(data_dict)
+    df = df.dropna(axis=1, how='all')  # Remove completely empty columns
+    
+    # Set data using dictionary method (more robust than set_data_from_df)
+    for col in df.columns:
+        if col.strip() == "":  # Skip empty column names
+            continue
+        clean_name = col.strip().upper()[:8]  # LAS standard limits to 8 chars
+        output_las.add_curve(clean_name, df[col].values)
+    
+    # Write to bytes buffer with error handling
+    las_buffer = io.BytesIO()
+    try:
+        output_las.write(las_buffer, version=2.0, wrap=False, fmt='%.5f')
+        las_buffer.seek(0)
+        
+        st.download_button(
+            label="Download Results (LAS)",
+            data=las_buffer.getvalue(),
+            file_name=f"{output_las.well.WELL.value}_geomech.las",
+            mime="text/plain"
+        )
+    except Exception as write_error:
+        st.error(f"File write error: {str(write_error)}")
+        # Fallback to CSV if LAS fails
+        csv_buffer = io.StringIO()
+        df.to_csv(csv_buffer)
+        st.download_button(
+            label="Download Results (CSV)",
+            data=csv_buffer.getvalue(),
+            file_name=f"{output_las.well.WELL.value}_geomech.csv",
+            mime="text/csv"
+        )
+
 except Exception as e:
-    st.error(f"Minimal download failed: {str(e)}")
-
-
-
-
-
-
+    st.error(f"Final processing error: {str(e)}")
+    st.error("Please check your input data and try again.")
 
 
 
