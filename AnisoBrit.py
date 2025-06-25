@@ -163,30 +163,66 @@ with col3:
 #output_las.version = las.version
 #output_las.wrap = las.wrap
 
-import pandas as pd
+# Download results - DEBUGGED VERSION
 try:
+    # Initialize new LAS file with basic headers
     output_las = lasio.LASFile()
-    output_las.set_data(pd.DataFrame({
-        'DEPTH': las.index,
-        'YMv': YMv,
-        'YMh': YMh,
-        'Vv': Vv,
-        'Vh': Vh,
-        'BRITv': BRITv,
-        'BRITh': BRITh,
-        'DELTA': delta,
-        'EPSILON': epsilon,
-        'GAMMA': gamma
-    }))
+    output_las.well['WELL'].value = las.well['WELL'].value if 'WELL' in las.well else 'ANONYMOUS'
+    output_las.well['STRT'].value = las.index[0]
+    output_las.well['STOP'].value = las.index[-1]
+    output_las.well['STEP'].value = las.index[1] - las.index[0] if len(las.index) > 1 else 1.0
+    output_las.well['NULL'].value = -999.25
+    
+    # Add depth curve first
+    output_las.add_curve('DEPT', las.index, unit='m')
+    
+    # Add new calculated curves with validation
+    new_curves = [
+        ('YMv', YMv, 'GPa'),
+        ('YMh', YMh, 'GPa'),
+        ('Vv', Vv, ''),
+        ('Vh', Vh, ''),
+        ('BRITv', BRITv, ''),
+        ('BRITh', BRITh, ''),
+        ('DELTA', delta, ''),
+        ('EPSILON', epsilon, ''),
+        ('GAMMA', gamma, '')
+    ]
+    
+    for mnemonic, data, unit in new_curves:
+        if data is not None:
+            # Replace NaN values with NULL value
+            clean_data = np.nan_to_num(data, nan=-999.25)
+            output_las.add_curve(mnemonic, clean_data, unit=unit)
+            output_las.add_param(mnemonic, f"Calculated {mnemonic}", '')
+    
+    # Write to bytes buffer instead of StringIO
+    las_buffer = io.BytesIO()
+    output_las.write(las_buffer, version=2.0)  # Explicitly use LAS 2.0
+    las_buffer.seek(0)
     
     st.download_button(
         label="Download Results (LAS)",
-        data=output_las.write(),
+        data=las_buffer.getvalue(),
         file_name="geomechanical_analysis.las",
         mime="text/plain"
     )
+
 except Exception as e:
-    st.error(f"Error creating download: {str(e)}")
+    st.error(f"Error creating download file: {str(e)}")
+    st.error("Please check the input data and try again.")
+
+
+
+
+
+
+
+
+
+
+
+    
 
 
 
