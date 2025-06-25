@@ -163,24 +163,35 @@ with col3:
 #output_las.version = las.version
 #output_las.wrap = las.wrap
 
-
-# Download results
 try:
-    # Create new LAS file
     output_las = lasio.LASFile()
+    output_las.set_data(pd.DataFrame({
+        'DEPTH': las.index,
+        'YMv': YMv,
+        'YMh': YMh,
+        'Vv': Vv,
+        'Vh': Vh,
+        'BRITv': BRITv,
+        'BRITh': BRITh,
+        'DELTA': delta,
+        'EPSILON': epsilon,
+        'GAMMA': gamma
+    }))
     
-    # Copy essential well information safely
-    for item in ['STRT', 'STOP', 'STEP', 'NULL']:
-        if item in las.well:
-            output_las.well[item] = las.well[item]
-    
-    # Set depth units
-    output_las.well['DEPT'].unit = las.well['DEPT'].unit if 'DEPT' in las.well else 'm'
-    
-    # Add original curves
-    for curve in las.curves:
-        if curve.mnemonic not in ['YMv', 'YMh', 'Vv', 'Vh', 'BRITv', 'BRITh', 'DELTA', 'EPSILON', 'GAMMA']:
-            output_las.add_curve(curve.mnemonic, curve.data, unit=curve.unit)
+    st.download_button(
+        label="Download Results (LAS)",
+        data=output_las.write(),
+        file_name="geomechanical_analysis.las",
+        mime="text/plain"
+    )
+except Exception as e:
+    st.error(f"Error creating download: {str(e)}")
+
+
+
+
+
+
     
     # Add new calculated curves
     new_curves = [
