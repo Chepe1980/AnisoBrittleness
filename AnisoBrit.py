@@ -167,91 +167,79 @@ import pandas as pd
 
 
 
-# Download results - FULLY DEBUGGED VERSION
+# Download results - FINAL WORKING VERSION
 try:
-    # Create a new clean LAS file
+    # Initialize a new LAS file
     output_las = lasio.LASFile()
     
-    # Set mandatory well headers with validation
-    required_headers = {
-        'WELL': ('ANONYMOUS', str),
-        'NULL': (-999.25, float),
-        'STRT': (float(las.index[0]), float),
-        'STOP': (float(las.index[-1]), float),
-        'STEP': (float(las.index[1] - las.index[0]) if len(las.index) > 1 else 1.0, float)
+    # Set basic well information with fallbacks
+    output_las.well.WELL.value = str(getattr(las.well, 'WELL', 'ANONYMOUS').value)
+    output_las.well.NULL.value = -999.25
+    output_las.well.STRT.value = float(las.index[0])
+    output_las.well.STOP.value = float(las.index[-1])
+    output_las.well.STEP.value = float(las.index[1] - las.index[0]) if len(las.index) > 1 else 1.0
+    
+    # Create a dictionary of all data to export
+    data_dict = {
+        'DEPT': las.index,
+        'YMv': np.nan_to_num(YMv, nan=-999.25),
+        'YMh': np.nan_to_num(YMh, nan=-999.25),
+        'Vv': np.nan_to_num(Vv, nan=-999.25),
+        'Vh': np.nan_to_num(Vh, nan=-999.25),
+        'BRITv': np.nan_to_num(BRITv, nan=-999.25),
+        'BRITh': np.nan_to_num(BRITh, nan=-999.25),
+        'DELTA': np.nan_to_num(delta, nan=-999.25),
+        'EPSILON': np.nan_to_num(epsilon, nan=-999.25),
+        'GAMMA': np.nan_to_num(gamma, nan=-999.25)
     }
     
-    for header, (default, dtype) in required_headers.items():
-        try:
-            val = dtype(las.well[header].value) if header in las.well else default
-            setattr(output_las.well, header, val)
-        except:
-            setattr(output_las.well, header, default)
-    
-    # Create clean data dictionary with validated curve names
-    data_dict = {}
-    
-    # Add depth first
-    data_dict['DEPT'] = las.index
-    
-    # Add calculated curves with name validation
-    curves = [
-        ('YMv', YMv),
-        ('YMh', YMh),
-        ('Vv', Vv),
-        ('Vh', Vh),
-        ('BRITv', BRITv),
-        ('BRITh', BRITh),
-        ('DELTA', delta),
-        ('EPSILON', epsilon),
-        ('GAMMA', gamma)
-    ]
-    
-    for name, data in curves:
-        if name.strip() == "":  # Skip empty names
-            continue
-        clean_data = np.nan_to_num(data, nan=-999.25)
-        data_dict[name] = clean_data
-    
-    # Convert to DataFrame and validate
+    # Convert to DataFrame
     df = pd.DataFrame(data_dict)
-    df = df.dropna(axis=1, how='all')  # Remove completely empty columns
     
-    # Set data using dictionary method (more robust than set_data_from_df)
-    for col in df.columns:
-        if col.strip() == "":  # Skip empty column names
-            continue
-        clean_name = col.strip().upper()[:8]  # LAS standard limits to 8 chars
-        output_las.add_curve(clean_name, df[col].values)
+    # Use the most reliable method to set data
+    if hasattr(output_las, 'set_data_from_df'):
+        output_las.set_data_from_df(df)
+    else:
+        # Fallback for older versions
+        for col in df.columns:
+            if hasattr(output_las, 'append_curve'):
+                output_las.append_curve(col, df[col].values)
+            else:
+                # Last resort - create new curve item
+                curve = lasio.items.CurveItem(col, df[col].values)
+                output_las.curves.append(curve)
     
-    # Write to bytes buffer with error handling
-    las_buffer = io.BytesIO()
+    # Write to buffer with error handling
+    las_buffer = io.StringIO()
     try:
-        output_las.write(las_buffer, version=2.0, wrap=False, fmt='%.5f')
-        las_buffer.seek(0)
-        
-        st.download_button(
-            label="Download Results (LAS)",
-            data=las_buffer.getvalue(),
-            file_name=f"{output_las.well.WELL.value}_geomech.las",
-            mime="text/plain"
-        )
-    except Exception as write_error:
-        st.error(f"File write error: {str(write_error)}")
-        # Fallback to CSV if LAS fails
+        output_las.write(las_buffer)
+        las_data = las_buffer.getvalue()
+    except:
+        # Fallback to direct writing if buffer fails
+        las_data = output_las.write()
+    
+    # Create download button
+    st.download_button(
+        label="Download Results (LAS)",
+        data=las_data,
+        file_name=f"{output_las.well.WELL.value}_geomech.las",
+        mime="text/plain"
+    )
+
+except Exception as e:
+    st.error(f"Final error: {str(e)}")
+    # Provide CSV fallback
+    try:
         csv_buffer = io.StringIO()
-        df.to_csv(csv_buffer)
+        pd.DataFrame(data_dict).to_csv(csv_buffer)
         st.download_button(
             label="Download Results (CSV)",
             data=csv_buffer.getvalue(),
             file_name=f"{output_las.well.WELL.value}_geomech.csv",
             mime="text/csv"
         )
-
-except Exception as e:
-    st.error(f"Final processing error: {str(e)}")
-    st.error("Please check your input data and try again.")
-
+    except:
+        st.error("Could not generate any output format. Please check your input data.")
 
 
 
