@@ -163,6 +163,7 @@ with col3:
 #output_las.version = las.version
 #output_las.wrap = las.wrap
 
+import pandas as pd
 try:
     output_las = lasio.LASFile()
     output_las.set_data(pd.DataFrame({
