@@ -167,71 +167,36 @@ import pandas as pd
 
 
 
-
-
-
-
-# Download results - COMPLETE SOLUTION
 try:
-    # Initialize new LAS file with required headers
+    # Create simple LAS file with just depth and calculated values
     output_las = lasio.LASFile()
-    
-    # Set mandatory well information with fallbacks
-    output_las.well.WELL.value = str(las.well.WELL.value) if 'WELL' in las.well else 'ANONYMOUS'
     output_las.well.NULL.value = -999.25
-    output_las.well.STRT.value = float(las.index[0])
-    output_las.well.STOP.value = float(las.index[-1])
-    output_las.well.STEP.value = float(las.index[1] - las.index[0]) if len(las.index) > 1 else 1.0
     
-    # Add version and wrap information
-    output_las.version = ['1.2', 'WRAP: NO']
+    # Add only numeric data columns
+    data_dict = {
+        'DEPT': las.index,
+        'YMv': np.nan_to_num(YMv, nan=-999.25),
+        'YMh': np.nan_to_num(YMh, nan=-999.25),
+        'Vv': np.nan_to_num(Vv, nan=-999.25),
+        'Vh': np.nan_to_num(Vh, nan=-999.25)
+    }
     
-    # Function to safely add curves
-    def safe_add_curve(las_file, mnemonic, data, unit=''):
-        """Add curve with validation and cleaning"""
-        if data is None:
-            return
-        clean_data = np.nan_to_num(data, nan=-999.25)
-        if hasattr(las_file, 'add_curve'):
-            las_file.add_curve(mnemonic, clean_data, unit=unit)
-        else:  # For older lasio versions
-            las_file.append_curve(mnemonic, clean_data, unit=unit)
+    # Convert to DataFrame and set data
+    df = pd.DataFrame(data_dict)
+    output_las.set_data(df)
     
-    # Add depth curve first
-    safe_add_curve(output_las, 'DEPT', las.index, 'm')
-    
-    # Add all calculated curves
-    curves = [
-        ('YMv', YMv, 'GPa'),
-        ('YMh', YMh, 'GPa'),
-        ('Vv', Vv, ''),
-        ('Vh', Vh, ''),
-        ('BRITv', BRITv, ''),
-        ('BRITh', BRITh, ''),
-        ('DELTA', delta, ''),
-        ('EPSILON', epsilon, ''),
-        ('GAMMA', gamma, '')
-    ]
-    
-    for mnemonic, data, unit in curves:
-        safe_add_curve(output_las, mnemonic, data, unit)
-    
-    # Write to bytes buffer with explicit encoding
-    las_buffer = io.BytesIO()
-    output_las.write(las_buffer, version=2.0, fmt='%.5f')  # Control float formatting
-    las_buffer.seek(0)
-    
-    # Create download button
     st.download_button(
-        label="Download Results (LAS)",
-        data=las_buffer.getvalue(),
-        file_name=f"{output_las.well.WELL.value}_geomech.las",
+        label="Download Minimal Results",
+        data=output_las.write(),
+        file_name="minimal_results.las",
         mime="text/plain"
     )
-
 except Exception as e:
-    st.error(f"Final download error: {str(e)}")
-    st.error("Please contact support with your input file for debugging.")
+    st.error(f"Minimal download failed: {str(e)}")
+
+
+
+
 
 
 
