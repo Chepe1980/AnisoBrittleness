@@ -235,8 +235,8 @@ except Exception as e:
     ]
     
     for mnemonic, data, unit, desc in new_curves:
-        output_las.append_curve(mnemonic, data, unit=unit)
-        output_las.append_param(mnemonic, desc, '')
+        output_las.add_curve(mnemonic, data, unit=unit)
+        output_las.add_param(mnemonic, desc, '')
     
     # Generate download button
     las_data = output_las.write()
